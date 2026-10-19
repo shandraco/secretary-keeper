@@ -19,3 +19,5 @@ training/data/
 *.safetensors
 *.gguf
 .DS_Store
+docs/pdf/source/.fonts/
+docs/pdf/source/.build/

@@ -30,6 +30,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
 | If you want to… | Read |
 |---|---|
+| Read everything as one PDF, with diagrams | [docs/pdf/handbook.pdf](docs/pdf/handbook.pdf) |
 | Understand how it works and why it's built this way | [docs/architecture.md](docs/architecture.md) |
 | Install it on the GPU server | [docs/setup.md](docs/setup.md) |
 | Choose which GPUs each model uses | `python3 scripts/setup_gpus.py` ([setup.md step 3](docs/setup.md)) |
