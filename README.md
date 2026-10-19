@@ -65,3 +65,7 @@ Also built: a job queue that keeps checks alive across restarts, PDF, Word, Exce
 from the chat, a review queue (Argilla) where staff confirm or correct verdicts, and LoRA fine-tuning
 from those reviews. See [docs/review-and-training.md](docs/review-and-training.md) and
 [docs/architecture.md](docs/architecture.md#roadmap).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
