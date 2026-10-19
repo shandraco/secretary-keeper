@@ -225,3 +225,14 @@ def test_total_table_cells_are_capped():
     spec = {"title": "Big", "sections": [{"heading": f"S{i}", "table": table} for i in range(2)]}
     with pytest.raises(ValueError, match="too many cells"):
         compose.validate_spec(spec)
+
+
+def test_compare_of_thousands_of_sections_finishes_quickly():
+    import time
+    from app.reports.compare import compare_policies
+    left = "".join(f"1.{i} Rule {i} for area {i * 31 % 997}.\n" for i in range(1, 4000))
+    right = "".join(f"2.{i} Rule {i} for area {i * 31 % 997}.\n" for i in range(1, 4000))
+    start = time.monotonic()
+    cmp = compare_policies(left, right)
+    assert time.monotonic() - start < 5
+    assert cmp["counts"]["removed"] == 3999 and cmp["counts"]["added"] == 3999

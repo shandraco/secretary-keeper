@@ -202,7 +202,8 @@ async def run_impact(svc: Services, run_id: str) -> dict:
         raise RunError(f"The group “{subset}” has no policies to check apart from {head_id}.")
     metas = await store.get_policies(policy_ids)
 
-    changes = diff_clauses(split_clauses(old_body), split_clauses(new_body))
+    # In a thread so a large upload can't stall other requests; diff_clauses caps its own time
+    changes = await asyncio.to_thread(lambda: diff_clauses(split_clauses(old_body), split_clauses(new_body)))
     await progress(f"Found {len(changes)} changed section(s). Looking for related sections…")
     work = []
     for change in changes:

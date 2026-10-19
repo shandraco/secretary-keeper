@@ -53,3 +53,33 @@ def test_diff_of_samples(samples):
     assert set(changes) == {"2.1", "2.2", "4.2", "5.3"}
     assert changes["2.1"].terms == ["Isolation point"]
     assert changes["5.3"].kind == "added"
+
+
+def _numbered(prefix: str, n: int, words: str = "") -> str:
+    return "".join(f"{prefix}.{i} Rule {i} about item {i * 7919 % 10007} {words}\n" for i in range(1, n + 1))
+
+
+def test_diff_of_thousands_of_moved_clauses_finishes_quickly():
+    # Every clause moves from section 1 to 2: 3000 x 3000 pairs is over the cap, so no matching is tried
+    import time
+    old, new = split_clauses(_numbered("1", 3000)), split_clauses(_numbered("2", 3000))
+    start = time.monotonic()
+    changes = diff_clauses(old, new)
+    assert time.monotonic() - start < 3
+    kinds = [c.kind for c in changes]
+    assert kinds.count("removed") == 3000 and kinds.count("added") == 3000
+
+
+def test_diff_stops_matching_at_its_time_limit():
+    # With no time left, matching stops at once and every clause is still reported, as removed or added
+    old, new = split_clauses(_numbered("1", 50)), split_clauses(_numbered("2", 50))
+    changes = diff_clauses(old, new, seconds=0)
+    assert sorted(c.number for c in changes if c.kind == "removed") == sorted(c.number for c in old)
+    assert sorted(c.number for c in changes if c.kind == "added") == sorted(c.number for c in new)
+
+
+def test_diff_still_matches_many_moved_clauses():
+    old, new = split_clauses(_numbered("1", 150)), split_clauses(_numbered("2", 150))
+    changes = diff_clauses(old, new)
+    assert all(c.kind == "renumbered" for c in changes) and len(changes) == 150
+    assert {(c.old_number, c.number) for c in changes} == {(f"1.{i}", f"2.{i}") for i in range(1, 151)}

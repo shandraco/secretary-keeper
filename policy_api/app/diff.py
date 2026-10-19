@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
 from .documents import Clause, terms_defined
 
 RENUMBER_MATCH = 0.6  # similarity needed to treat a moved clause as the same clause
+# Matching moved clauses compares every unmatched old clause with every unmatched new one. An uploaded file
+# can make that huge, so cap the pairs, the text compared per clause, and the time spent. Past a cap the
+# remaining clauses are reported as removed and added, which still sends them to the judge.
+MAX_RENUMBER_PAIRS = 1_000_000
+MATCH_CHARS = 4_000
+DIFF_SECONDS = 5.0
 
 
 @dataclass
@@ -49,7 +56,7 @@ def _change(kind: str, old: Clause | None, new: Clause | None) -> Change:
     return Change(number, kind, heading, old_text, new_text, terms, old_number)
 
 
-def diff_clauses(old: list[Clause], new: list[Clause]) -> list[Change]:
+def diff_clauses(old: list[Clause], new: list[Clause], seconds: float = DIFF_SECONDS) -> list[Change]:
     old_by = {c.number: c for c in old}
     new_by = {c.number: c for c in new}
     changes: list[Change] = []
@@ -61,17 +68,29 @@ def diff_clauses(old: list[Clause], new: list[Clause]) -> list[Change]:
 
     unmatched_old = [c for c in old if c.number not in new_by]
     unmatched_new = [c for c in new if c.number not in old_by]
-    for n in list(unmatched_new):
-        best, score = None, 0.0
-        for o in unmatched_old:
-            s = SequenceMatcher(None, _norm(o.text), _norm(n.text)).ratio()
-            if s > score:
-                best, score = o, s
-        if best is not None and score >= RENUMBER_MATCH:
-            unmatched_old.remove(best)
-            unmatched_new.remove(n)
-            same = _norm(best.text) == _norm(n.text)
-            changes.append(_change("renumbered" if same else "modified", best, n))
+    if unmatched_old and unmatched_new and len(unmatched_old) * len(unmatched_new) <= MAX_RENUMBER_PAIRS:
+        deadline = time.monotonic() + seconds
+        old_norm = {id(o): _norm(o.text)[:MATCH_CHARS] for o in unmatched_old}
+        sm = SequenceMatcher()
+        for n in list(unmatched_new):
+            sm.set_seq2(_norm(n.text)[:MATCH_CHARS])  # seq2 is the side SequenceMatcher indexes, so set it once
+            best, score = None, 0.0
+            for o in unmatched_old:
+                if time.monotonic() > deadline:
+                    break
+                sm.set_seq1(old_norm[id(o)])
+                # real_quick_ratio and quick_ratio are cheap upper bounds on ratio: skip pairs that can't win
+                bar = max(RENUMBER_MATCH, score)
+                if sm.real_quick_ratio() < bar or sm.quick_ratio() < bar:
+                    continue
+                s = sm.ratio()
+                if s > score:
+                    best, score = o, s
+            if best is not None and score >= RENUMBER_MATCH:
+                unmatched_old.remove(best)
+                unmatched_new.remove(n)
+                same = _norm(best.text) == _norm(n.text)
+                changes.append(_change("renumbered" if same else "modified", best, n))
 
     changes += [_change("added", None, n) for n in unmatched_new]
     changes += [_change("removed", o, None) for o in unmatched_old]
